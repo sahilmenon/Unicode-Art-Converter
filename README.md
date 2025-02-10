@@ -10,12 +10,14 @@ A simple Python script that converts images into ASCII art. This tool takes any 
 - Outputs both to console and text file
 - Uses a rich set of ASCII characters for detailed gradients
 - Preserves image contrast and details
+- Available in both CLI and GUI versions
 
 ## Requirements
 
 - Python 3.x
 - Pillow (PIL)
 - NumPy
+- Tkinter (included with Python)
 
 Install the required packages using:
 
@@ -25,22 +27,33 @@ pip install Pillow numpy
 
 ## Usage
 
-1. Clone or download this repository
-2. Run the script:
+### Command Line Interface
+1. Run the script:
 ```bash
 python image_to_ascii.py
 ```
-3. When prompted:
+2. When prompted:
    - Enter the path to your image file
    - Enter desired width (default is 100 characters)
 
+### Graphical User Interface
+1. Run the UI version:
+```bash
+python image_to_ascii_ui.py
+```
+2. Use the interface to:
+   - Select an image using the "Select Image" button
+   - Set the desired width
+   - Click "Convert" to generate ASCII art
+   - Save the result using the "Save ASCII" button
+
 The ASCII art will be:
-- Displayed in the console
-- Saved to `ascii_output.txt` in the same directory
+- Displayed in the application window
+- Can be saved to a text file of your choice
 
 ## Example
 
-Input:
+Command Line Input:
 ```
 Enter the path to your image: cat.jpg
 Enter desired width (default 100): 100

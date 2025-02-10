@@ -3,7 +3,7 @@ import numpy as np
 
 def image_to_ascii(image_path, width=100):
     # ASCII characters from darkest to lightest
-    ascii_chars = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,\"^`'. "
+    ascii_chars = r"$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,\"^`'. "
     
     # Open and resize image
     img = Image.open(image_path)
