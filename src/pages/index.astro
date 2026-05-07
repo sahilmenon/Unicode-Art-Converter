@@ -1,0 +1,1704 @@
+---
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASCII / Unicode Art Converter</title>
+  <meta name="description" content="Convert images and videos to ASCII and Unicode art in real-time. Supports webcam, drag & drop, color output, and braille mode." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --surface: #0f0f0f;
+      --border: #1e1e1e;
+      --accent: #00ff88;
+      --accent-dim: #008844;
+      --text: #b0b0b0;
+      --muted: #404040;
+      --font: 'Courier New', 'Lucida Console', monospace;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100dvh;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 2.5rem 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+    .header-glyph {
+      color: var(--accent-dim);
+      font-size: 1.4rem;
+      letter-spacing: 0.4em;
+      text-shadow: 0 0 12px var(--accent-dim);
+    }
+    h1 {
+      color: var(--accent);
+      font-size: clamp(1rem, 5vw, 2rem);
+      letter-spacing: 0.35em;
+      text-shadow: 0 0 24px rgba(0,255,136,0.5);
+      margin: 0.4rem 0 0.3rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+    }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    /* ── Drop zone ── */
+    #drop-zone {
+      border: 1px dashed var(--border);
+      border-radius: 3px;
+      padding: 1.75rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      position: relative;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--accent-dim);
+      background: rgba(0,255,136,0.025);
+    }
+    #drop-zone.has-source {
+      padding: 0.7rem 1rem;
+      border-style: solid;
+      border-color: var(--accent-dim);
+      cursor: default;
+    }
+    .drop-icon { font-size: 1.8rem; color: var(--muted); margin-bottom: 0.4rem; }
+    .drop-text { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.05em; }
+    .drop-buttons {
+      display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;
+      margin-top: 0.8rem;
+    }
+    #source-info {
+      display: none; align-items: center; gap: 0.6rem;
+      font-size: 0.78rem; color: var(--text);
+    }
+    #source-info.visible { display: flex; }
+    .badge {
+      background: rgba(0,255,136,0.08);
+      border: 1px solid var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.68rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: 2px;
+      letter-spacing: 0.06em;
+    }
+    #source-name {
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Controls ── */
+    #controls {
+      display: flex; flex-wrap: wrap; gap: 0.9rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      align-items: center;
+    }
+    .ctrl { display: flex; align-items: center; gap: 0.45rem; }
+    label {
+      color: var(--muted); font-size: 0.7rem;
+      letter-spacing: 0.1em; white-space: nowrap;
+    }
+    .val { color: var(--accent); font-size: 0.72rem; min-width: 3em; }
+
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none;
+      width: 90px; height: 2px; background: var(--border); outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 11px; height: 11px;
+      background: var(--accent); border-radius: 50%; cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 11px; height: 11px;
+      background: var(--accent); border-radius: 50%; cursor: pointer; border: none;
+    }
+
+    select {
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font); font-size: 0.78rem;
+      padding: 0.28rem 0.5rem; cursor: pointer; border-radius: 2px; outline: none;
+    }
+    select:focus { border-color: var(--accent-dim); }
+
+    input[type="color"] {
+      width: 26px; height: 26px;
+      border: 1px solid var(--border); border-radius: 2px;
+      cursor: pointer; padding: 2px; background: var(--bg);
+    }
+
+    /* ── Buttons ── */
+    button {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font);
+      font-size: 0.78rem; padding: 0.35rem 0.8rem;
+      cursor: pointer; border-radius: 2px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    button:hover { border-color: var(--accent-dim); color: var(--accent); }
+    button.primary { border-color: var(--accent-dim); color: var(--accent); }
+    button.primary:hover { background: rgba(0,255,136,0.07); box-shadow: 0 0 8px rgba(0,255,136,0.15); }
+    button.active { background: rgba(0,255,136,0.1); border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+
+    /* ── Output area ── */
+    #output-wrapper {
+      position: relative;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: auto;
+      min-height: 220px;
+      max-height: 75vh;
+      touch-action: pan-y;
+    }
+    #output-wrapper::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px
+      );
+      pointer-events: none;
+    }
+    #output-canvas { display: block; }
+    #output-placeholder {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 280px; gap: 0.5rem;
+      color: var(--muted); font-size: 0.8rem; letter-spacing: 0.08em;
+      user-select: none;
+    }
+    .placeholder-art {
+      color: #1a1a1a; font-size: 0.65rem; line-height: 1.2;
+      letter-spacing: 0.05em; text-align: center;
+    }
+
+    /* ── Video overlay controls ── */
+    #video-controls {
+      position: absolute; bottom: 0.6rem; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 0.4rem;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      padding: 0.3rem 0.6rem;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      z-index: 10;
+    }
+
+    /* ── Bottom bar ── */
+    #bottom-bar {
+      display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 0.5rem;
+    }
+    #status { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.06em; }
+    #actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* ── Color pickers section ── */
+    #color-pickers { transition: opacity 0.15s; }
+
+    /* ── URL row ── */
+    .url-row {
+      display: flex; gap: 0.4rem; justify-content: center;
+      margin-top: 0.6rem;
+    }
+    .url-row input[type="text"] {
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); font-family: var(--font);
+      font-size: 0.76rem; padding: 0.3rem 0.55rem;
+      width: min(340px, 60vw); border-radius: 2px; outline: none;
+    }
+    .url-row input[type="text"]:focus { border-color: var(--accent-dim); }
+
+    /* ── Effects row ── */
+    #controls-fx {
+      display: flex; flex-wrap: wrap; gap: 0.9rem;
+      padding: 0.7rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 3px 3px;
+      align-items: center;
+      margin-top: -0.9rem; /* collapse gap with row above */
+    }
+
+    /* ── Custom chars row ── */
+    #custom-chars-row {
+      display: none; align-items: center; gap: 0.6rem;
+      padding: 0.45rem 1rem;
+      border: 1px solid var(--accent-dim);
+      border-top: none; border-radius: 0 0 3px 3px;
+      background: rgba(0,255,136,0.04);
+      margin-top: -0.9rem;
+    }
+    #custom-chars-input {
+      flex: 1; max-width: 420px;
+      background: var(--bg); border: 1px solid var(--border);
+      color: var(--accent); font-family: var(--font);
+      font-size: 0.88rem; letter-spacing: 0.14em;
+      padding: 0.28rem 0.5rem; outline: none; border-radius: 2px;
+    }
+    #custom-chars-input:focus { border-color: var(--accent); }
+
+    /* ── Recording ── */
+    @keyframes recblink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    button.recording { color:#ff5555!important; border-color:#ff5555!important; animation:recblink 1s step-end infinite; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      /* Header */
+      header { padding: 1.1rem 1rem 0.8rem; }
+      .header-glyph { font-size: 1rem; letter-spacing: 0.25em; }
+      h1 { font-size: 1rem; letter-spacing: 0.18em; }
+      .subtitle { font-size: 0.62rem; letter-spacing: 0.08em; }
+
+      /* Layout */
+      main { padding: 0.6rem; gap: 0.55rem; }
+
+      /* Drop zone */
+      #drop-zone { padding: 1rem 0.75rem; }
+      .drop-icon { font-size: 1.3rem; margin-bottom: 0.2rem; }
+      .drop-text { display: none; }
+      .drop-buttons { gap: 0.3rem; margin-top: 0.5rem; }
+      .url-row { flex-wrap: nowrap; }
+      .url-row input[type="text"] { width: 0; flex: 1; font-size: 0.72rem; }
+
+      /* Controls — two per row via flex grow */
+      #controls, #controls-fx {
+        gap: 0.45rem 0.6rem;
+        padding: 0.6rem 0.75rem;
+      }
+      .ctrl { flex: 1 1 calc(50% - 0.3rem); min-width: 0; }
+      /* Sliders fill available space */
+      input[type="range"] { width: 1px; flex: 1; min-width: 36px; }
+      /* Selects shouldn't overflow their cell */
+      select { max-width: 100%; font-size: 0.72rem; }
+      /* Fix the negative-margin join between #controls and #controls-fx */
+      #controls { border-radius: 3px 3px 0 0; }
+      #controls-fx { margin-top: calc(-0.55rem - 1px); border-radius: 0 0 3px 3px; }
+      #custom-chars-row { margin-top: calc(-0.55rem - 1px); }
+
+      /* Output */
+      #output-wrapper { max-height: 52vh; min-height: 150px; }
+      #output-placeholder { min-height: 150px; font-size: 0.72rem; }
+      .placeholder-art { font-size: 0.48rem; letter-spacing: 0.02em; }
+      /* Scale canvas to fit width instead of forcing horizontal scroll */
+      #output-canvas { max-width: 100%; height: auto; display: block; }
+
+      /* Video overlay */
+      #video-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: calc(100vw - 1.5rem);
+        gap: 0.3rem;
+      }
+
+      /* Bottom bar */
+      #bottom-bar { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+      #status { text-align: center; }
+      #actions { justify-content: center; gap: 0.3rem; flex-wrap: wrap; }
+      #actions button { font-size: 0.7rem; padding: 0.32rem 0.55rem; }
+
+      /* Custom charset row */
+      #custom-chars-row { flex-wrap: wrap; gap: 0.4rem; }
+      #custom-chars-input { max-width: 100%; flex: 1 1 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-glyph">░▒▓▓▒░</div>
+    <h1>ASCII / UNICODE ART</h1>
+    <p class="subtitle">image · video · webcam → text art</p>
+  </header>
+
+  <main>
+    <!-- Source picker -->
+    <div id="drop-zone" role="button" tabindex="0" aria-label="Drop image or video file here, or click to browse">
+      <div id="drop-idle">
+        <div class="drop-icon">⬇</div>
+        <p class="drop-text">drop image or video here</p>
+        <div class="drop-buttons">
+          <button class="primary" id="browse-btn">browse files</button>
+          <button id="webcam-btn">📷 webcam</button>
+          <button id="stop-webcam-btn" style="display:none">■ stop cam</button>
+        </div>
+        <div class="url-row">
+          <input type="text" id="url-input" placeholder="or paste image URL…" spellcheck="false" autocomplete="off" />
+          <button id="url-load-btn">load</button>
+        </div>
+      </div>
+      <div id="source-info">
+        <span id="source-name"></span>
+        <span class="badge" id="source-badge">IMG</span>
+        <button id="clear-btn" style="margin-left:auto; font-size:0.7rem">✕ clear</button>
+      </div>
+      <input id="file-input" type="file" accept="image/*,video/*" style="display:none" />
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+      <div class="ctrl">
+        <label>COLS</label>
+        <input type="range" id="cols-slider" min="20" max="240" step="4" value="120" />
+        <span class="val" id="cols-val">120</span>
+      </div>
+      <div class="ctrl">
+        <label>SIZE</label>
+        <input type="range" id="size-slider" min="6" max="16" step="1" value="9" />
+        <span class="val" id="size-val">9px</span>
+      </div>
+      <div class="ctrl">
+        <label>CHARS</label>
+        <select id="charset-select">
+          <option value="blocks" selected>blocks ░▒▓█</option>
+          <option value="detailed">ascii dense</option>
+          <option value="simple">ascii simple</option>
+          <option value="braille">braille ⣿</option>
+          <option value="unicode">unicode ✦ all</option>
+          <option value="emoji">emoji 🎨 mosaic</option>
+          <option value="custom">custom ✎</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <button id="color-btn">⬛ MONO</button>
+      </div>
+      <div class="ctrl">
+        <button id="invert-btn" class="active">DARK BG</button>
+      </div>
+      <div class="ctrl" id="color-pickers">
+        <label>FG</label>
+        <input type="color" id="fg-color" value="#00ff88" title="Foreground color" />
+        <label>BG</label>
+        <input type="color" id="bg-color" value="#000000" title="Background color" />
+      </div>
+    </div>
+
+    <!-- Effects controls -->
+    <div id="controls-fx">
+      <div class="ctrl">
+        <label>DITHER</label>
+        <select id="dither-select">
+          <option value="none">none</option>
+          <option value="floyd-steinberg">floyd-steinberg</option>
+          <option value="atkinson">atkinson</option>
+          <option value="ordered">ordered</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <button id="edge-btn">EDGE DETECT</button>
+      </div>
+      <div class="ctrl">
+        <label>BRIGHT</label>
+        <input type="range" id="bright-slider" min="-100" max="100" step="5" value="0" />
+        <span class="val" id="bright-val">0</span>
+      </div>
+      <div class="ctrl">
+        <label>CONTR</label>
+        <input type="range" id="contrast-slider" min="-100" max="100" step="5" value="0" />
+        <span class="val" id="contrast-val">0</span>
+      </div>
+      <div class="ctrl">
+        <button id="drift-btn">✦ DRIFT</button>
+      </div>
+    </div>
+
+    <!-- Custom chars (visible only when charset=custom) -->
+    <div id="custom-chars-row">
+      <label style="white-space:nowrap;font-size:0.7rem;color:var(--muted)">CHARS (sparse→dense)</label>
+      <input type="text" id="custom-chars-input" value=" .:-=+*#%@█" spellcheck="false" autocomplete="off" />
+      <span style="color:var(--muted);font-size:0.7rem">left=sparse&nbsp;right=dense</span>
+    </div>
+
+    <!-- Output canvas -->
+    <div id="output-wrapper">
+      <div id="output-placeholder">
+        <div class="placeholder-art">
+          ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░<br />
+          ░  drop a file above to      ░<br />
+          ░  generate ASCII art  ░▒▓█  ░<br />
+          ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+        </div>
+        <span>supports jpg · png · gif · mp4 · webm · webcam</span>
+      </div>
+      <canvas id="output-canvas" style="display:none"></canvas>
+      <div id="video-controls" style="display:none">
+        <button id="play-pause-btn">⏸ pause</button>
+        <button id="restart-btn">⏮</button>
+        <button id="snapshot-btn" style="display:none" class="primary">📸 snap</button>
+        <button id="record-btn" style="display:none">⏺ rec</button>
+      </div>
+    </div>
+
+    <!-- Bottom bar -->
+    <div id="bottom-bar">
+      <div id="status">ready</div>
+      <div id="actions">
+        <button id="copy-btn" disabled>copy text</button>
+        <button id="dl-png-btn" disabled>↓ png</button>
+        <button id="dl-jpg-btn" disabled>↓ jpg</button>
+        <button id="dl-svg-btn" disabled>↓ svg</button>
+        <button id="dl-txt-btn" disabled>↓ txt</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Off-screen media elements -->
+  <video id="source-video" style="display:none" playsinline autoplay muted loop crossorigin="anonymous"></video>
+  <img id="source-img" style="display:none" crossorigin="anonymous" alt="" />
+
+  <script>
+    // ── Character sets ────────────────────────────────────────────────────────
+    const CHAR_SETS = {
+      blocks:   [...'█▓▒░ '],
+      detailed: [...'$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,"^`\'. '],
+      simple:   [...'@#%*+=-:. '],
+      braille:  null, // special 2×4 mode
+      unicode:  null, // built at startup from all symbol Unicode blocks
+      emoji:    null, // special colour-matching mode
+      custom:   null, // user-defined sequence
+    };
+
+    // ── Unicode density pool ──────────────────────────────────────────────────
+    // Ranges covering box-drawing, blocks, geometric, symbols, dingbats,
+    // math, technical, arrows, enclosed alphanumerics, supplemental arrows,
+    // misc math, Braille patterns, and more.
+    function generateUnicodePool() {
+      const ranges = [
+        [0x0021, 0x007E], // Printable ASCII (skip space, added separately)
+        [0x00A1, 0x00FF], // Latin-1 Supplement
+        [0x0370, 0x03FF], // Greek & Coptic
+        [0x2100, 0x218F], // Letterlike Symbols, Number Forms
+        [0x2190, 0x21FF], // Arrows
+        [0x2200, 0x22FF], // Mathematical Operators
+        [0x2300, 0x23FF], // Miscellaneous Technical
+        [0x2400, 0x245F], // Control Pictures / OCR
+        [0x2460, 0x24FF], // Enclosed Alphanumerics
+        [0x2500, 0x257F], // Box Drawing
+        [0x2580, 0x259F], // Block Elements
+        [0x25A0, 0x25FF], // Geometric Shapes
+        [0x2600, 0x26FF], // Miscellaneous Symbols
+        [0x2700, 0x27BF], // Dingbats
+        [0x27C0, 0x27EF], // Misc Math Symbols-A
+        [0x2800, 0x28FF], // Braille Patterns (256 density levels!)
+        [0x2980, 0x29FF], // Misc Math Symbols-B
+        [0x2A00, 0x2AFF], // Supplemental Mathematical Operators
+        [0x2B00, 0x2BFF], // Miscellaneous Symbols and Arrows
+        [0x3000, 0x303F], // CJK Symbols and Punctuation
+        [0xFF01, 0xFF5E], // Fullwidth ASCII variants (dense, wide)
+      ];
+      const chars = [' '];
+      for (const [start, end] of ranges) {
+        for (let cp = start; cp <= end; cp++) {
+          chars.push(String.fromCodePoint(cp));
+        }
+      }
+      return chars;
+    }
+
+    // Render each char to an off-screen canvas and measure filled pixel ratio.
+    // Returns chars sorted sparse → dense (space first, █ last).
+    function buildDensityMap(pool) {
+      const size = 18;
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const x = c.getContext('2d');
+      x.textBaseline = 'middle';
+      x.textAlign = 'center';
+      x.font = `${Math.round(size * 0.78)}px "Courier New", monospace`;
+
+      const scored = new Map();
+      for (const ch of pool) {
+        if (scored.has(ch)) continue;
+        x.clearRect(0, 0, size, size);
+        x.fillStyle = '#fff';
+        x.fillText(ch, size / 2, size / 2);
+        const { data } = x.getImageData(0, 0, size, size);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 4) sum += data[i]; // R channel
+        const density = sum / (data.length / 4); // 0–255 average
+        // Keep char if it renders something (or is space)
+        if (density > 0 || ch === ' ') scored.set(ch, density);
+      }
+
+      return [...scored.entries()]
+        .sort((a, b) => a[1] - b[1])
+        .map(([ch]) => ch);
+    }
+
+    // ── Emoji mosaic ──────────────────────────────────────────────────────────
+    const EMOJI_LIST = [
+      // Dark/black
+      '⬛','🖤','🌑','🕳️','🦇','🎱',
+      // Dark grays
+      '🌚','💀','🌫️','🦈','🌧️',
+      // Light grays
+      '🩶','🌥️','🌪️',
+      // White/near-white
+      '⬜','🤍','☁️','❄️','🌨️','🏔️','🌁',
+      // Reds
+      '🔴','❤️','🍎','🍒','🌹','🌺','🍓','🏮','🎯','🧧',
+      // Oranges
+      '🟠','🧡','🍊','🎃','🔶','🥕','🍑','🥭','🏵️',
+      // Yellows
+      '🟡','⭐','☀️','💛','🍋','🌻','🌟','✨','🌕','🏆','🌼',
+      // Yellow-greens / limes
+      '🌿','🌱','🍃','🥝','🌾',
+      // Greens
+      '🟢','💚','🌲','🌴','🌵','🍀','🥑','🐸','🌍','🌏','🦚','🎄',
+      // Cyan/teal
+      '🩵','💎','🧊','🏊','🌊','🐬','🫧','🦋',
+      // Blues
+      '🔵','💙','🌀','🐳','🌐','🫐','🧿','🌊','🔷',
+      // Indigo/dark blue
+      '🫐','🌃','🌌','🔮',
+      // Purples
+      '🟣','💜','🍇','🍆','🌂','🦄','💐',
+      // Pinks / magentas
+      '💗','🌸','🌷','🩷','🦩','💮','🌺',
+      // Browns / tans
+      '🟤','🍂','🪵','🍕','🐻','🌰','🍫','🥐','🏜️',
+      // Fiery / warm
+      '🔥','🌋','♨️','🎆',
+      // Misc vivid
+      '🍄','🐙','🦀','🐠','🌈','🎨','🎭',
+    ];
+
+    // Render each emoji to a canvas and measure its average colour (opaque pixels only).
+    function buildEmojiColors(emojis) {
+      const size = 28;
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const x = c.getContext('2d');
+      x.textBaseline = 'middle';
+      x.textAlign = 'center';
+      x.font = `${Math.round(size * 0.85)}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+
+      const result = [];
+      const seen = new Set();
+      for (const emoji of emojis) {
+        if (seen.has(emoji)) continue;
+        seen.add(emoji);
+        x.clearRect(0, 0, size, size);
+        x.fillText(emoji, size / 2, size / 2);
+        const { data } = x.getImageData(0, 0, size, size);
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 64) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+        }
+        // Only keep if the emoji actually rendered (enough opaque pixels)
+        if (n > size * 0.5) result.push({ emoji, r: r / n, g: g / n, b: b / n });
+      }
+      return result;
+    }
+
+    // Pre-compute a 32³ colour → nearest-emoji lookup table for O(1) matching at render time.
+    function buildEmojiLUT(ec) {
+      const LEVELS = 32, STEP = 256 / LEVELS;
+      const lut = new Array(LEVELS * LEVELS * LEVELS);
+      for (let ri = 0; ri < LEVELS; ri++) {
+        for (let gi = 0; gi < LEVELS; gi++) {
+          for (let bi = 0; bi < LEVELS; bi++) {
+            const r = ri * STEP, g = gi * STEP, b = bi * STEP;
+            let best = ec[0], bestD = Infinity;
+            for (const e of ec) {
+              const d = (e.r - r) ** 2 + (e.g - g) ** 2 + (e.b - b) ** 2;
+              if (d < bestD) { bestD = d; best = e; }
+            }
+            lut[ri * LEVELS * LEVELS + gi * LEVELS + bi] = best.emoji;
+          }
+        }
+      }
+      return lut;
+    }
+
+    const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+
+    // Braille dot → [col-offset, row-offset] within 2×4 cell
+    const BRAILLE_MAP = [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[0,3],[1,3]];
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let cols      = 120;
+    let fontSize  = 9;
+    let charSet   = 'blocks';
+    let colored   = false;
+    let inverted  = true;  // true = dark bg (natural look on terminal)
+    let fgColor   = '#00ff88';
+    let bgColor   = '#000000';
+    let srcType   = null;  // 'image' | 'video' | 'webcam'
+    let animRun   = false;
+    let animId    = null;
+    let charW     = 0;
+    let charH     = 0;
+    // Built at startup
+    let emojiColors = [];
+    let emojiLUT    = [];
+
+    // Effects state
+    let ditherMode          = 'none';
+    let edgeMode            = false;
+    let brightness          = 0;
+    let contrast            = 0;
+    let driftMode           = false;
+    let particles           = [];
+    let mediaRecorder       = null;
+    let recordedChunks      = [];
+    let recordStartTime     = 0;
+    let recordTimerInterval = null;
+
+    // ── DOM refs ──────────────────────────────────────────────────────────────
+    const dropZone      = document.getElementById('drop-zone');
+    const dropIdle      = document.getElementById('drop-idle');
+    const sourceInfo    = document.getElementById('source-info');
+    const sourceName    = document.getElementById('source-name');
+    const sourceBadge   = document.getElementById('source-badge');
+    const fileInput     = document.getElementById('file-input');
+    const browseBtn     = document.getElementById('browse-btn');
+    const webcamBtn     = document.getElementById('webcam-btn');
+    const stopCamBtn    = document.getElementById('stop-webcam-btn');
+    const clearBtn      = document.getElementById('clear-btn');
+    const colsSlider    = document.getElementById('cols-slider');
+    const colsVal       = document.getElementById('cols-val');
+    const sizeSlider    = document.getElementById('size-slider');
+    const sizeVal       = document.getElementById('size-val');
+    const charsetSel    = document.getElementById('charset-select');
+    const colorBtn      = document.getElementById('color-btn');
+    const invertBtn     = document.getElementById('invert-btn');
+    const colorPickers  = document.getElementById('color-pickers');
+    const fgInput       = document.getElementById('fg-color');
+    const bgInput       = document.getElementById('bg-color');
+    const outWrapper    = document.getElementById('output-wrapper');
+    const outPlaceholder= document.getElementById('output-placeholder');
+    const outCanvas     = document.getElementById('output-canvas');
+    const videoCtrls    = document.getElementById('video-controls');
+    const playPauseBtn  = document.getElementById('play-pause-btn');
+    const restartBtn    = document.getElementById('restart-btn');
+    const snapshotBtn   = document.getElementById('snapshot-btn');
+    const statusEl      = document.getElementById('status');
+    const copyBtn       = document.getElementById('copy-btn');
+    const dlPngBtn      = document.getElementById('dl-png-btn');
+    const dlJpgBtn      = document.getElementById('dl-jpg-btn');
+    const dlSvgBtn      = document.getElementById('dl-svg-btn');
+    const dlTxtBtn      = document.getElementById('dl-txt-btn');
+    const srcVideo      = document.getElementById('source-video');
+    const srcImg        = document.getElementById('source-img');
+    const urlInput      = document.getElementById('url-input');
+    const urlLoadBtn    = document.getElementById('url-load-btn');
+    const ditherSelect  = document.getElementById('dither-select');
+    const edgeBtn       = document.getElementById('edge-btn');
+    const brightSlider  = document.getElementById('bright-slider');
+    const brightVal     = document.getElementById('bright-val');
+    const contrastSlider= document.getElementById('contrast-slider');
+    const contrastVal   = document.getElementById('contrast-val');
+    const driftBtn      = document.getElementById('drift-btn');
+    const recordBtn     = document.getElementById('record-btn');
+    const customCharsRow= document.getElementById('custom-chars-row');
+    const customCharsInput = document.getElementById('custom-chars-input');
+
+    const ctx           = outCanvas.getContext('2d');
+    const sampler       = document.createElement('canvas');
+    const sCtx          = sampler.getContext('2d', { willReadFrequently: true });
+
+    // ── Char dimension helpers ────────────────────────────────────────────────
+    function measureChar() {
+      if (charSet === 'emoji') {
+        ctx.font = `${fontSize}px ${EMOJI_FONT}`;
+        // Emojis are square glyphs — cell height must match cell width
+        // so the aspect-ratio correction in processFrame works correctly.
+        charW = ctx.measureText('🟡').width || fontSize;
+        charH = charW;
+      } else {
+        charH = fontSize;
+        ctx.font = `${fontSize}px "Courier New", monospace`;
+        charW = ctx.measureText('M').width;
+      }
+    }
+
+    // O(1) emoji lookup via pre-built LUT
+    function emojiForColor(r, g, b) {
+      const LEVELS = 32, STEP = 256 / LEVELS;
+      const ri = Math.min(31, Math.floor(r / STEP));
+      const gi = Math.min(31, Math.floor(g / STEP));
+      const bi = Math.min(31, Math.floor(b / STEP));
+      return emojiLUT[ri * LEVELS * LEVELS + gi * LEVELS + bi] ?? '⬛';
+    }
+
+    // Convert #rrggbb to rgba(...) string
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+    }
+
+    // Map Sobel gradient angle to a directional ASCII char
+    function edgeChar(angle) {
+      const a = ((angle % Math.PI) + Math.PI) % Math.PI;
+      if (a < Math.PI/8 || a >= 7*Math.PI/8) return '─';
+      if (a < 3*Math.PI/8) return '╱';
+      if (a < 5*Math.PI/8) return '│';
+      return '╲';
+    }
+
+    // Resolve the active char array (handles custom charset)
+    function resolveChars() {
+      if (charSet === 'custom') {
+        const v = customCharsInput.value;
+        return v.length ? [...v] : [...' .:-=+*#%@█'];
+      }
+      return CHAR_SETS[charSet];
+    }
+
+    // Apply Floyd-Steinberg / Atkinson / Ordered dithering to luminance.
+    // Returns Float32Array of dithered lum values (0-255) same size as w*h.
+    function applyDithering(px, w, h, numLevels, mode) {
+      const lum = new Float32Array(w * h);
+      for (let i = 0; i < w * h; i++) {
+        lum[i] = 0.2126*px[i*4] + 0.7152*px[i*4+1] + 0.0722*px[i*4+2];
+      }
+      const levels = Math.max(1, numLevels - 1);
+      if (mode === 'ordered') {
+        const bayer = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+        const spread = 255 / levels;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const t = (bayer[(y%4)*4+(x%4)] / 16 - 0.5) * spread;
+            lum[y*w+x] = Math.max(0, Math.min(255, lum[y*w+x] + t));
+          }
+        }
+        return lum;
+      }
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = y*w+x;
+          const old = lum[idx];
+          const q = Math.round(old / 255 * levels) / levels * 255;
+          const err = old - q;
+          lum[idx] = q;
+          if (mode === 'floyd-steinberg') {
+            if (x+1 < w)         lum[idx+1]   = Math.min(255, Math.max(0, lum[idx+1]   + err*7/16));
+            if (y+1 < h) {
+              if (x-1 >= 0)      lum[idx+w-1] = Math.min(255, Math.max(0, lum[idx+w-1] + err*3/16));
+                                 lum[idx+w]   = Math.min(255, Math.max(0, lum[idx+w]   + err*5/16));
+              if (x+1 < w)       lum[idx+w+1] = Math.min(255, Math.max(0, lum[idx+w+1] + err*1/16));
+            }
+          } else if (mode === 'atkinson') {
+            const s = err / 8;
+            if (x+1 < w)         lum[idx+1]       = Math.min(255, Math.max(0, lum[idx+1]       + s));
+            if (x+2 < w)         lum[idx+2]       = Math.min(255, Math.max(0, lum[idx+2]       + s));
+            if (y+1 < h) {
+              if (x-1 >= 0)      lum[idx+w-1]     = Math.min(255, Math.max(0, lum[idx+w-1]     + s));
+                                 lum[idx+w]       = Math.min(255, Math.max(0, lum[idx+w]       + s));
+              if (x+1 < w)       lum[idx+w+1]     = Math.min(255, Math.max(0, lum[idx+w+1]     + s));
+            }
+            if (y+2 < h)         lum[(y+2)*w+x]   = Math.min(255, Math.max(0, lum[(y+2)*w+x]   + s));
+          }
+        }
+      }
+      return lum;
+    }
+
+    // ── Core render ───────────────────────────────────────────────────────────
+    function processFrame(source) {
+      const srcW = source.videoWidth  ?? source.naturalWidth;
+      const srcH = source.videoHeight ?? source.naturalHeight;
+      if (!srcW || !srcH) return;
+
+      const isBraille = charSet === 'braille';
+      const sampleCols = isBraille ? cols * 2 : cols;
+
+      const aspect = srcH / srcW;
+      const outRows = isBraille
+        ? Math.max(1, Math.round(cols * aspect * (charW / charH) * 4 / 4))
+        : Math.max(1, Math.round(cols * aspect * (charW / charH)));
+      const sampleRows = isBraille ? outRows * 4 : outRows;
+
+      sampler.width  = sampleCols;
+      sampler.height = sampleRows;
+
+      // Apply brightness/contrast via canvas filter before sampling
+      const filterParts = [];
+      if (brightness !== 0) filterParts.push(`brightness(${1 + brightness/100})`);
+      if (contrast !== 0)   filterParts.push(`contrast(${1 + contrast/100})`);
+      sCtx.filter = filterParts.length ? filterParts.join(' ') : 'none';
+      sCtx.drawImage(source, 0, 0, sampleCols, sampleRows);
+      sCtx.filter = 'none';
+
+      const { data: px } = sCtx.getImageData(0, 0, sampleCols, sampleRows);
+
+      const canvasW = Math.round(cols * charW);
+      const canvasH = outRows * charH;
+      if (outCanvas.width !== canvasW || outCanvas.height !== canvasH) {
+        outCanvas.width  = canvasW;
+        outCanvas.height = canvasH;
+        particles = []; // reset drift particles on resize
+      }
+
+      if (!driftMode) {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvasW, canvasH);
+      }
+      ctx.textBaseline = 'top';
+
+      if (edgeMode && charSet !== 'emoji') {
+        ctx.font = `${fontSize}px "Courier New", monospace`;
+        renderEdge(px, cols, outRows, sampleCols);
+      } else if (driftMode && charSet !== 'emoji') {
+        ctx.font = `${fontSize}px "Courier New", monospace`;
+        renderDrift(px, cols, outRows, sampleCols);
+      } else if (charSet === 'emoji') {
+        ctx.font = `${fontSize}px ${EMOJI_FONT}`;
+        renderEmoji(px, cols, outRows, sampleCols);
+      } else if (isBraille) {
+        ctx.font = `${fontSize}px "Courier New", monospace`;
+        renderBraille(px, cols, outRows, sampleCols);
+      } else {
+        const chars = resolveChars();
+        let ditheredLum = null;
+        if (ditherMode !== 'none' && chars) {
+          ditheredLum = applyDithering(px, sampleCols, sampleRows, chars.length, ditherMode);
+        }
+        ctx.font = `${fontSize}px "Courier New", monospace`;
+        renderAscii(px, cols, outRows, sampleCols, chars, ditheredLum);
+      }
+    }
+
+    function renderAscii(px, outCols, outRows, sampleCols, chars, ditheredLum = null) {
+      const len = chars.length - 1;
+      for (let row = 0; row < outRows; row++) {
+        for (let col = 0; col < outCols; col++) {
+          const i = (row * sampleCols + col) * 4;
+          const r = px[i], g = px[i+1], b = px[i+2];
+          const lum = ditheredLum
+            ? ditheredLum[row * sampleCols + col]
+            : 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          let ci = Math.max(0, Math.min(len, Math.floor(lum / 255 * len)));
+          if (inverted) ci = len - ci;
+          ctx.fillStyle = colored ? `rgb(${r},${g},${b})` : fgColor;
+          ctx.fillText(chars[ci], col * charW, row * charH);
+        }
+      }
+    }
+
+    function renderBraille(px, outCols, outRows, sampleCols) {
+      for (let row = 0; row < outRows; row++) {
+        for (let col = 0; col < outCols; col++) {
+          let bits = 0, tr = 0, tg = 0, tb = 0;
+          for (let d = 0; d < 8; d++) {
+            const [dx, dy] = BRAILLE_MAP[d];
+            const sx = col * 2 + dx;
+            const sy = row * 4 + dy;
+            if (sx < sampleCols) {
+              const i = (sy * sampleCols + sx) * 4;
+              const r = px[i], g = px[i+1], b = px[i+2];
+              const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+              tr += r; tg += g; tb += b;
+              // dot ON = bright content on dark bg (inverted), or dark content on light bg
+              const dotOn = inverted ? lum >= 128 : lum < 128;
+              if (dotOn) bits |= (1 << d);
+            }
+          }
+          ctx.fillStyle = colored
+            ? `rgb(${Math.round(tr/8)},${Math.round(tg/8)},${Math.round(tb/8)})`
+            : fgColor;
+          ctx.fillText(String.fromCodePoint(0x2800 + bits), col * charW, row * charH);
+        }
+      }
+    }
+
+    // ── Emoji mosaic renderer ─────────────────────────────────────────────────
+    // No fillStyle — emojis always render in their own colours.
+    function renderEmoji(px, outCols, outRows, sampleCols) {
+      for (let row = 0; row < outRows; row++) {
+        for (let col = 0; col < outCols; col++) {
+          const i = (row * sampleCols + col) * 4;
+          const em = emojiForColor(px[i], px[i + 1], px[i + 2]);
+          ctx.fillText(em, col * charW, row * charH);
+        }
+      }
+    }
+
+    // ── Edge detection renderer ───────────────────────────────────────────────
+    function renderEdge(px, outCols, outRows, sampleCols) {
+      const getLum = (row, col) => {
+        const r = Math.max(0, Math.min(outRows-1, row));
+        const c = Math.max(0, Math.min(sampleCols-1, col));
+        const i = (r * sampleCols + c) * 4;
+        return 0.2126*px[i] + 0.7152*px[i+1] + 0.0722*px[i+2];
+      };
+      for (let row = 0; row < outRows; row++) {
+        for (let col = 0; col < outCols; col++) {
+          const gx = (-getLum(row-1,col-1) + getLum(row-1,col+1)
+                    - 2*getLum(row,col-1)  + 2*getLum(row,col+1)
+                    -   getLum(row+1,col-1)+ getLum(row+1,col+1));
+          const gy = (-getLum(row-1,col-1) - 2*getLum(row-1,col) - getLum(row-1,col+1)
+                    +   getLum(row+1,col-1)+ 2*getLum(row+1,col) + getLum(row+1,col+1));
+          const mag = Math.hypot(gx, gy);
+          const i = (row * sampleCols + col) * 4;
+          if (mag > 20) {
+            ctx.fillStyle = colored ? `rgb(${px[i]},${px[i+1]},${px[i+2]})` : fgColor;
+            ctx.fillText(edgeChar(Math.atan2(gy, gx)), col * charW, row * charH);
+          } else {
+            ctx.fillStyle = bgColor;
+            ctx.fillText(' ', col * charW, row * charH);
+          }
+        }
+      }
+    }
+
+    // ── Drift / flow renderer (particle system along iso-luminance contours) ──
+    function renderDrift(px, outCols, outRows, sampleCols) {
+      const TARGET_N = Math.round(outCols * outRows * 0.25);
+      if (particles.length !== TARGET_N) {
+        particles = Array.from({ length: TARGET_N }, () => ({
+          x: Math.random() * outCols,
+          y: Math.random() * outRows,
+          maxLife: outRows * (0.5 + Math.random() * 0.5),
+          life: 0,
+        }));
+        particles.forEach(p => { p.life = Math.random() * p.maxLife; });
+      }
+
+      // Trail: semi-transparent overlay instead of hard clear
+      ctx.fillStyle = hexToRgba(bgColor, 0.12);
+      ctx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+
+      const getLum = (row, col) => {
+        const r = Math.max(0, Math.min(outRows-1, row));
+        const c = Math.max(0, Math.min(sampleCols-1, col));
+        const i = (r * sampleCols + c) * 4;
+        return 0.2126*px[i] + 0.7152*px[i+1] + 0.0722*px[i+2];
+      };
+
+      for (const p of particles) {
+        p.life--;
+        if (p.life <= 0) {
+          p.x = Math.random() * outCols;
+          p.y = Math.random() * outRows;
+          p.maxLife = outRows * (0.5 + Math.random() * 0.5);
+          p.life = p.maxLife;
+        }
+        const col = Math.floor(p.x);
+        const row = Math.floor(p.y);
+        if (col < 0 || col >= outCols || row < 0 || row >= outRows) continue;
+
+        // Sobel gradient — particle flows perpendicular (along iso-luminance)
+        const gx = (-getLum(row-1,col-1) + getLum(row-1,col+1)
+                  - 2*getLum(row,col-1)  + 2*getLum(row,col+1)
+                  -   getLum(row+1,col-1)+ getLum(row+1,col+1));
+        const gy = (-getLum(row-1,col-1) - 2*getLum(row-1,col) - getLum(row-1,col+1)
+                  +   getLum(row+1,col-1)+ 2*getLum(row+1,col) + getLum(row+1,col+1));
+        const mag = Math.hypot(gx, gy) + 1;
+        p.x += (-gy / mag) * 0.4 + (Math.random() - 0.5) * 0.15;
+        p.y += ( gx / mag) * 0.4 + (Math.random() - 0.5) * 0.15;
+
+        const i = (row * sampleCols + col) * 4;
+        const alpha = Math.min(1, (p.life / p.maxLife) * 2);
+        ctx.fillStyle = colored
+          ? `rgba(${px[i]},${px[i+1]},${px[i+2]},${alpha.toFixed(3)})`
+          : hexToRgba(fgColor, alpha);
+        ctx.fillText(edgeChar(Math.atan2(gy, gx)), col * charW, row * charH);
+      }
+    }
+
+    // ── Animation loop ────────────────────────────────────────────────────────
+    function startLoop() {
+      if (animRun) return;
+      animRun = true;
+      function tick() {
+        if (!animRun) return;
+        if (srcType === 'video' || srcType === 'webcam') {
+          if (!srcVideo.paused && srcVideo.readyState >= 2) {
+            processFrame(srcVideo);
+          }
+        } else if (srcType === 'image' && driftMode) {
+          processFrame(srcImg);
+        }
+        animId = requestAnimationFrame(tick);
+      }
+      animId = requestAnimationFrame(tick);
+    }
+
+    function stopLoop() {
+      animRun = false;
+      if (animId !== null) { cancelAnimationFrame(animId); animId = null; }
+    }
+
+    // ── Source management ─────────────────────────────────────────────────────
+    function showOutput(type, name) {
+      srcType = type;
+      sourceName.textContent = name;
+      sourceBadge.textContent = type.toUpperCase();
+      dropIdle.style.display = 'none';
+      sourceInfo.classList.add('visible');
+      dropZone.classList.add('has-source');
+      outPlaceholder.style.display = 'none';
+      outCanvas.style.display = 'block';
+      [copyBtn, dlPngBtn, dlJpgBtn, dlSvgBtn, dlTxtBtn].forEach(b => b.disabled = false);
+      snapshotBtn.style.display = type === 'webcam' ? '' : 'none';
+      recordBtn.style.display = (type === 'video' || type === 'webcam') ? '' : 'none';
+    }
+
+    function clearSource() {
+      stopLoop();
+      stopRecording();
+      if (srcVideo.srcObject) {
+        srcVideo.srcObject.getTracks().forEach(t => t.stop());
+        srcVideo.srcObject = null;
+      }
+      srcVideo.src = '';
+      srcImg.src = '';
+      srcType = null;
+      particles = [];
+
+      dropIdle.style.display = 'block';
+      sourceInfo.classList.remove('visible');
+      dropZone.classList.remove('has-source');
+      webcamBtn.style.display = '';
+      stopCamBtn.style.display = 'none';
+      videoCtrls.style.display = 'none';
+      snapshotBtn.style.display = 'none';
+      recordBtn.style.display = 'none';
+      outPlaceholder.style.display = 'flex';
+      outCanvas.style.display = 'none';
+      [copyBtn, dlPngBtn, dlJpgBtn, dlSvgBtn, dlTxtBtn].forEach(b => b.disabled = true);
+      setStatus('ready');
+    }
+
+    // ── File loading ──────────────────────────────────────────────────────────
+    function loadFile(file) {
+      clearSource();
+      const isVideo = /^video\//.test(file.type)
+        || /\.(mp4|webm|mov|ogg|avi)$/i.test(file.name);
+      const url = URL.createObjectURL(file);
+
+      if (isVideo) {
+        srcVideo.src = url;
+        srcVideo.load();
+        srcVideo.onloadedmetadata = () => {
+          measureChar();
+          showOutput('video', file.name);
+          videoCtrls.style.display = 'flex';
+          playPauseBtn.textContent = '⏸ pause';
+          srcVideo.play();
+          startLoop();
+          setStatus(`${srcVideo.videoWidth}×${srcVideo.videoHeight} · ${file.name}`);
+        };
+      } else {
+        srcImg.onload = () => {
+          measureChar();
+          processFrame(srcImg);
+          showOutput('image', file.name);
+          setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${file.name}`);
+        };
+        srcImg.onerror = () => setStatus('failed to load image');
+        srcImg.src = url;
+      }
+    }
+
+    // ── Webcam ────────────────────────────────────────────────────────────────
+    async function startWebcam() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        clearSource();
+        srcVideo.srcObject = stream;
+        srcVideo.onloadedmetadata = () => {
+          measureChar();
+          showOutput('webcam', 'webcam');
+          webcamBtn.style.display = 'none';
+          stopCamBtn.style.display = '';
+          srcVideo.play();
+          startLoop();
+          setStatus(`${srcVideo.videoWidth}×${srcVideo.videoHeight} · webcam live`);
+        };
+      } catch {
+        setStatus('webcam access denied or unavailable');
+      }
+    }
+
+    // ── Drag & Drop ───────────────────────────────────────────────────────────
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer?.files[0];
+      if (file) loadFile(file);
+    });
+    dropZone.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      if (!srcType) fileInput.click();
+    });
+    dropZone.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ' ') && !srcType) fileInput.click();
+    });
+
+    // ── Control wiring ────────────────────────────────────────────────────────
+    browseBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+    fileInput.addEventListener('change', () => { if (fileInput.files?.[0]) loadFile(fileInput.files[0]); });
+    webcamBtn.addEventListener('click', e => { e.stopPropagation(); startWebcam(); });
+    stopCamBtn.addEventListener('click', e => { e.stopPropagation(); clearSource(); });
+    clearBtn.addEventListener('click', e => { e.stopPropagation(); clearSource(); });
+
+    colsSlider.addEventListener('input', () => {
+      cols = parseInt(colsSlider.value);
+      colsVal.textContent = String(cols);
+      if (srcType === 'image') { measureChar(); processFrame(srcImg); }
+    });
+
+    sizeSlider.addEventListener('input', () => {
+      fontSize = parseInt(sizeSlider.value);
+      sizeVal.textContent = `${fontSize}px`;
+      measureChar();
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    charsetSel.addEventListener('change', () => {
+      charSet = charsetSel.value;
+      measureChar();
+
+      // Show custom charset input row only when custom mode is active
+      customCharsRow.style.display = charSet === 'custom' ? 'flex' : 'none';
+      if (charSet === 'custom') CHAR_SETS.custom = [...customCharsInput.value];
+
+      // Unicode and emoji modes look best in colour; auto-enable it.
+      if (charSet === 'unicode' || charSet === 'emoji') {
+        if (!colored) {
+          colored = true;
+          colorBtn.textContent = '🌈 COLOR';
+          colorBtn.classList.add('active');
+          colorPickers.style.opacity = '0.35';
+          colorPickers.style.pointerEvents = 'none';
+        }
+      }
+      // Emoji mode: colour toggle is meaningless (emojis have own colours), so dim it.
+      colorBtn.style.opacity = charSet === 'emoji' ? '0.35' : '1';
+      colorBtn.style.pointerEvents = charSet === 'emoji' ? 'none' : '';
+
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    colorBtn.addEventListener('click', () => {
+      colored = !colored;
+      colorBtn.textContent = colored ? '🌈 COLOR' : '⬛ MONO';
+      colorBtn.classList.toggle('active', colored);
+      colorPickers.style.opacity = colored ? '0.35' : '1';
+      colorPickers.style.pointerEvents = colored ? 'none' : '';
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    invertBtn.addEventListener('click', () => {
+      inverted = !inverted;
+      invertBtn.textContent = inverted ? 'DARK BG' : 'LIGHT BG';
+      invertBtn.classList.toggle('active', inverted);
+      // swap fg ↔ bg colors
+      [fgColor, bgColor] = [bgColor, fgColor];
+      fgInput.value = fgColor;
+      bgInput.value = bgColor;
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    fgInput.addEventListener('input', () => {
+      fgColor = fgInput.value;
+      if (srcType === 'image') processFrame(srcImg);
+    });
+    bgInput.addEventListener('input', () => {
+      bgColor = bgInput.value;
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    // ── URL loading ───────────────────────────────────────────────────────────
+    urlLoadBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      if (url) loadFromURL(url);
+    });
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { const url = urlInput.value.trim(); if (url) loadFromURL(url); }
+    });
+
+    // ── Effects controls ──────────────────────────────────────────────────────
+    ditherSelect.addEventListener('change', () => {
+      ditherMode = ditherSelect.value;
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    edgeBtn.addEventListener('click', () => {
+      edgeMode = !edgeMode;
+      if (edgeMode && driftMode) { driftMode = false; driftBtn.classList.remove('active'); particles = []; }
+      edgeBtn.classList.toggle('active', edgeMode);
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    brightSlider.addEventListener('input', () => {
+      brightness = parseInt(brightSlider.value);
+      brightVal.textContent = brightness > 0 ? `+${brightness}` : String(brightness);
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    contrastSlider.addEventListener('input', () => {
+      contrast = parseInt(contrastSlider.value);
+      contrastVal.textContent = contrast > 0 ? `+${contrast}` : String(contrast);
+      if (srcType === 'image') processFrame(srcImg);
+    });
+
+    driftBtn.addEventListener('click', () => {
+      driftMode = !driftMode;
+      if (driftMode && edgeMode) { edgeMode = false; edgeBtn.classList.remove('active'); }
+      driftBtn.classList.toggle('active', driftMode);
+      particles = [];
+      if (driftMode) {
+        if (srcType === 'image') startLoop();
+      } else {
+        if (srcType === 'image') { stopLoop(); processFrame(srcImg); }
+      }
+    });
+
+    // ── Custom charset ────────────────────────────────────────────────────────
+    customCharsInput.addEventListener('input', () => {
+      CHAR_SETS.custom = [...customCharsInput.value];
+      if (charSet === 'custom' && srcType === 'image') processFrame(srcImg);
+    });
+
+    // ── Record button ─────────────────────────────────────────────────────────
+    recordBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    });
+
+    playPauseBtn.addEventListener('click', () => {
+      if (srcVideo.paused) {
+        srcVideo.play();
+        playPauseBtn.textContent = '⏸ pause';
+      } else {
+        srcVideo.pause();
+        playPauseBtn.textContent = '▶ play';
+        processFrame(srcVideo);
+      }
+    });
+
+    restartBtn.addEventListener('click', () => {
+      srcVideo.currentTime = 0;
+      if (srcVideo.paused) srcVideo.play();
+      playPauseBtn.textContent = '⏸ pause';
+    });
+
+    // ── Text generation for export ────────────────────────────────────────────
+    function generateText() {
+      const source = srcType === 'image' ? srcImg : srcVideo;
+      const srcW = source.videoWidth  ?? source.naturalWidth;
+      const srcH = source.videoHeight ?? source.naturalHeight;
+      if (!srcW || !srcH) return '';
+
+      const isBraille = charSet === 'braille';
+      const sampleCols = isBraille ? cols * 2 : cols;
+      const outRows = Math.max(1, Math.round(cols * (srcH / srcW) * (charW / charH)));
+      const sampleRows = isBraille ? outRows * 4 : outRows;
+
+      sampler.width  = sampleCols;
+      sampler.height = sampleRows;
+      sCtx.drawImage(source, 0, 0, sampleCols, sampleRows);
+      const { data: px } = sCtx.getImageData(0, 0, sampleCols, sampleRows);
+
+      const getLumAt = (row, col) => {
+        const r = Math.max(0, Math.min(sampleRows-1, row));
+        const c = Math.max(0, Math.min(sampleCols-1, col));
+        const i = (r * sampleCols + c) * 4;
+        return 0.2126*px[i] + 0.7152*px[i+1] + 0.0722*px[i+2];
+      };
+
+      let text = '';
+      if (edgeMode && charSet !== 'emoji') {
+        for (let row = 0; row < outRows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const gx = (-getLumAt(row-1,col-1) + getLumAt(row-1,col+1)
+                      - 2*getLumAt(row,col-1)  + 2*getLumAt(row,col+1)
+                      -   getLumAt(row+1,col-1)+ getLumAt(row+1,col+1));
+            const gy = (-getLumAt(row-1,col-1) - 2*getLumAt(row-1,col) - getLumAt(row-1,col+1)
+                      +   getLumAt(row+1,col-1)+ 2*getLumAt(row+1,col) + getLumAt(row+1,col+1));
+            text += Math.hypot(gx, gy) > 20 ? edgeChar(Math.atan2(gy, gx)) : ' ';
+          }
+          text += '\n';
+        }
+      } else if (charSet === 'emoji') {
+        for (let row = 0; row < outRows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const i = (row * sampleCols + col) * 4;
+            text += emojiForColor(px[i], px[i + 1], px[i + 2]);
+          }
+          text += '\n';
+        }
+      } else if (isBraille) {
+        for (let row = 0; row < outRows; row++) {
+          for (let col = 0; col < cols; col++) {
+            let bits = 0;
+            for (let d = 0; d < 8; d++) {
+              const [dx, dy] = BRAILLE_MAP[d];
+              const sx = col * 2 + dx, sy = row * 4 + dy;
+              if (sx < sampleCols) {
+                const i = (sy * sampleCols + sx) * 4;
+                const lum = 0.2126 * px[i] + 0.7152 * px[i+1] + 0.0722 * px[i+2];
+                const dotOn = inverted ? lum >= 128 : lum < 128;
+                if (dotOn) bits |= (1 << d);
+              }
+            }
+            text += String.fromCodePoint(0x2800 + bits);
+          }
+          text += '\n';
+        }
+      } else {
+        const chars = resolveChars();
+        const len = chars.length - 1;
+        for (let row = 0; row < outRows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const i = (row * sampleCols + col) * 4;
+            const lum = 0.2126 * px[i] + 0.7152 * px[i+1] + 0.0722 * px[i+2];
+            let ci = Math.max(0, Math.min(len, Math.floor(lum / 255 * len)));
+            if (inverted) ci = len - ci;
+            text += chars[ci];
+          }
+          text += '\n';
+        }
+      }
+      return text;
+    }
+
+    // ── SVG generation ────────────────────────────────────────────────────────
+    // Produces a scalable vector file from the current frame.
+    // Colored mode: per-character <tspan fill="…">. Mono: one string per row.
+    // Emoji mode: emojis embedded as text (Unicode) — scales cleanly.
+    function generateSVG() {
+      const source = srcType === 'image' ? srcImg : srcVideo;
+      const srcW = source.videoWidth  ?? source.naturalWidth;
+      const srcH = source.videoHeight ?? source.naturalHeight;
+      if (!srcW || !srcH) return null;
+
+      const isBraille = charSet === 'braille';
+      const isEmoji   = charSet === 'emoji';
+      const sampleCols = isBraille ? cols * 2 : cols;
+      const outRows = Math.max(1, Math.round(cols * (srcH / srcW) * (charW / charH)));
+      const sampleRows = isBraille ? outRows * 4 : outRows;
+
+      sampler.width  = sampleCols;
+      sampler.height = sampleRows;
+      sCtx.drawImage(source, 0, 0, sampleCols, sampleRows);
+      const { data: px } = sCtx.getImageData(0, 0, sampleCols, sampleRows);
+
+      const svgW = Math.round(cols * charW);
+      const svgH = outRows * charH;
+      const fontFamily = isEmoji
+        ? `"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`
+        : `"Courier New",monospace`;
+
+      const getLumAt = (row, col) => {
+        const r = Math.max(0, Math.min(sampleRows-1, row));
+        const c = Math.max(0, Math.min(sampleCols-1, col));
+        const i = (r * sampleCols + c) * 4;
+        return 0.2126*px[i] + 0.7152*px[i+1] + 0.0722*px[i+2];
+      };
+      const svgChars = resolveChars();
+
+      let rows = [];
+      for (let row = 0; row < outRows; row++) {
+        const y = (row + 1) * charH; // baseline position
+        if (colored || isEmoji) {
+          // Per-character coloured spans
+          let spans = '';
+          for (let col = 0; col < cols; col++) {
+            let ch, fill;
+            if (edgeMode && !isEmoji) {
+              const gx = (-getLumAt(row-1,col-1) + getLumAt(row-1,col+1)
+                        - 2*getLumAt(row,col-1)  + 2*getLumAt(row,col+1)
+                        -   getLumAt(row+1,col-1)+ getLumAt(row+1,col+1));
+              const gy = (-getLumAt(row-1,col-1) - 2*getLumAt(row-1,col) - getLumAt(row-1,col+1)
+                        +   getLumAt(row+1,col-1)+ 2*getLumAt(row+1,col) + getLumAt(row+1,col+1));
+              const mag = Math.hypot(gx, gy);
+              const i = (row*sampleCols+col)*4;
+              ch = mag > 20 ? edgeChar(Math.atan2(gy, gx)) : ' ';
+              fill = mag > 20 ? `rgb(${px[i]},${px[i+1]},${px[i+2]})` : bgColor;
+            } else if (isEmoji) {
+              const i = (row * sampleCols + col) * 4;
+              ch = emojiForColor(px[i], px[i+1], px[i+2]);
+              fill = '';
+            } else if (isBraille) {
+              let bits = 0;
+              for (let d = 0; d < 8; d++) {
+                const [dx, dy] = BRAILLE_MAP[d];
+                const sx = col*2+dx, sy = row*4+dy;
+                if (sx < sampleCols) {
+                  const i = (sy*sampleCols+sx)*4;
+                  const lum = 0.2126*px[i]+0.7152*px[i+1]+0.0722*px[i+2];
+                  if (inverted ? lum>=128 : lum<128) bits |= (1<<d);
+                }
+              }
+              const i = (row*sampleCols+col)*4;
+              fill = `rgb(${px[i]},${px[i+1]},${px[i+2]})`;
+              ch = String.fromCodePoint(0x2800+bits);
+            } else {
+              const i = (row*sampleCols+col)*4;
+              const r=px[i], g=px[i+1], b=px[i+2];
+              const lum = 0.2126*r+0.7152*g+0.0722*b;
+              let ci = Math.max(0, Math.min(svgChars.length-1, Math.floor(lum/255*(svgChars.length-1))));
+              if (inverted) ci = svgChars.length-1-ci;
+              ch = svgChars[ci];
+              fill = `rgb(${r},${g},${b})`;
+            }
+            const esc = ch.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const x = Math.round(col * charW);
+            spans += fill
+              ? `<tspan x="${x}" fill="${fill}">${esc}</tspan>`
+              : `<tspan x="${x}">${esc}</tspan>`;
+          }
+          rows.push(`<text y="${y}" xml:space="preserve">${spans}</text>`);
+        } else {
+          // Monochrome — whole row as one string (smaller file)
+          let rowStr = '';
+          for (let col = 0; col < cols; col++) {
+            if (edgeMode) {
+              const gx = (-getLumAt(row-1,col-1) + getLumAt(row-1,col+1)
+                        - 2*getLumAt(row,col-1)  + 2*getLumAt(row,col+1)
+                        -   getLumAt(row+1,col-1)+ getLumAt(row+1,col+1));
+              const gy = (-getLumAt(row-1,col-1) - 2*getLumAt(row-1,col) - getLumAt(row-1,col+1)
+                        +   getLumAt(row+1,col-1)+ 2*getLumAt(row+1,col) + getLumAt(row+1,col+1));
+              rowStr += Math.hypot(gx, gy) > 20 ? edgeChar(Math.atan2(gy, gx)) : ' ';
+            } else if (isBraille) {
+              let bits = 0;
+              for (let d = 0; d < 8; d++) {
+                const [dx, dy] = BRAILLE_MAP[d];
+                const sx = col*2+dx, sy = row*4+dy;
+                if (sx < sampleCols) {
+                  const i = (sy*sampleCols+sx)*4;
+                  const lum = 0.2126*px[i]+0.7152*px[i+1]+0.0722*px[i+2];
+                  if (inverted ? lum>=128 : lum<128) bits |= (1<<d);
+                }
+              }
+              rowStr += String.fromCodePoint(0x2800+bits);
+            } else {
+              const i = (row*sampleCols+col)*4;
+              const lum = 0.2126*px[i]+0.7152*px[i+1]+0.0722*px[i+2];
+              let ci = Math.max(0, Math.min(svgChars.length-1, Math.floor(lum/255*(svgChars.length-1))));
+              if (inverted) ci = svgChars.length-1-ci;
+              rowStr += svgChars[ci];
+            }
+          }
+          const esc = rowStr.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          rows.push(`<text y="${y}" fill="${fgColor}" xml:space="preserve">${esc}</text>`);
+        }
+      }
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
+  <rect width="100%" height="100%" fill="${bgColor}"/>
+  <g font-family=${JSON.stringify(fontFamily)} font-size="${fontSize}" xml:space="preserve">
+    ${rows.join('\n    ')}
+  </g>
+</svg>`;
+    }
+
+    // ── Snapshot (webcam freeze + download prompt) ────────────────────────────
+    snapshotBtn.addEventListener('click', () => {
+      // Freeze current frame
+      srcVideo.pause();
+      playPauseBtn.textContent = '▶ play';
+      processFrame(srcVideo);
+
+      // Flash the canvas border to signal capture
+      outCanvas.style.outline = '3px solid var(--accent, #00ff88)';
+      setTimeout(() => outCanvas.style.outline = '', 600);
+
+      setStatus('snapshot captured — use the download buttons below');
+    });
+
+    // ── URL image/video loading ───────────────────────────────────────────────
+    function loadFromURL(url) {
+      clearSource();
+      const isVideo = /\.(mp4|webm|mov|ogg|avi)(\?.*)?$/i.test(url);
+      if (isVideo) {
+        srcVideo.crossOrigin = 'anonymous';
+        srcVideo.src = url;
+        srcVideo.load();
+        srcVideo.onloadedmetadata = () => {
+          measureChar();
+          showOutput('video', url.split('/').pop().split('?')[0] || 'remote video');
+          videoCtrls.style.display = 'flex';
+          playPauseBtn.textContent = '⏸ pause';
+          srcVideo.play();
+          startLoop();
+          setStatus(`${srcVideo.videoWidth}×${srcVideo.videoHeight} · ${url}`);
+        };
+        srcVideo.onerror = () => setStatus('failed to load video (CORS or invalid URL)');
+      } else {
+        srcImg.crossOrigin = 'anonymous';
+        srcImg.onload = () => {
+          measureChar();
+          processFrame(srcImg);
+          showOutput('image', url.split('/').pop().split('?')[0] || 'remote image');
+          setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${url}`);
+        };
+        srcImg.onerror = () => setStatus('failed to load image (CORS or invalid URL)');
+        srcImg.src = url;
+      }
+    }
+
+    // ── Video recording ───────────────────────────────────────────────────────
+    function startRecording() {
+      if (!outCanvas || typeof MediaRecorder === 'undefined') {
+        setStatus('recording not supported in this browser');
+        return;
+      }
+      recordedChunks = [];
+      const stream = outCanvas.captureStream(30);
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9' : 'video/webm';
+      mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        triggerDownload(URL.createObjectURL(blob), 'ascii-art.webm');
+        clearInterval(recordTimerInterval);
+        recordBtn.textContent = '⏺ rec';
+        recordBtn.classList.remove('recording');
+        mediaRecorder = null;
+        recordedChunks = [];
+      };
+      mediaRecorder.start(100);
+      recordStartTime = Date.now();
+      recordBtn.classList.add('recording');
+      recordBtn.textContent = '⏹ 00:00';
+      recordTimerInterval = setInterval(() => {
+        const s = Math.floor((Date.now() - recordStartTime) / 1000);
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        recordBtn.textContent = `⏹ ${mm}:${ss}`;
+      }, 1000);
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      if (recordTimerInterval) { clearInterval(recordTimerInterval); recordTimerInterval = null; }
+    }
+
+    // ── Export ────────────────────────────────────────────────────────────────
+    copyBtn.addEventListener('click', async () => {
+      const text = generateText();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const prev = copyBtn.textContent;
+        copyBtn.textContent = '✓ copied!';
+        setTimeout(() => copyBtn.textContent = prev, 2000);
+      } catch {
+        setStatus('clipboard access denied');
+      }
+    });
+
+    dlPngBtn.addEventListener('click', () => {
+      triggerDownload(outCanvas.toDataURL('image/png'), 'ascii-art.png');
+    });
+
+    dlJpgBtn.addEventListener('click', () => {
+      // Composite onto a white background first (JPEG has no alpha)
+      const tmp = document.createElement('canvas');
+      tmp.width  = outCanvas.width;
+      tmp.height = outCanvas.height;
+      const t = tmp.getContext('2d');
+      t.fillStyle = bgColor;
+      t.fillRect(0, 0, tmp.width, tmp.height);
+      t.drawImage(outCanvas, 0, 0);
+      triggerDownload(tmp.toDataURL('image/jpeg', 0.93), 'ascii-art.jpg');
+    });
+
+    dlSvgBtn.addEventListener('click', () => {
+      const svg = generateSVG();
+      if (!svg) return;
+      const blob = new Blob([svg], { type: 'image/svg+xml' });
+      triggerDownload(URL.createObjectURL(blob), 'ascii-art.svg');
+    });
+
+    dlTxtBtn.addEventListener('click', () => {
+      const text = generateText();
+      if (!text) return;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      triggerDownload(URL.createObjectURL(blob), 'ascii-art.txt');
+    });
+
+    // ── Paste from clipboard ──────────────────────────────────────────────────
+    document.addEventListener('paste', async e => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) { loadFile(file); break; }
+        }
+      }
+    });
+
+    // ── Utility ───────────────────────────────────────────────────────────────
+    function triggerDownload(href, filename) {
+      const a = document.createElement('a');
+      a.href = href; a.download = filename; a.click();
+    }
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    // ── Startup initialisation ────────────────────────────────────────────────
+    // Use fewer columns on narrow screens so the canvas fits without horizontal scroll
+    if (window.innerWidth < 640) {
+      cols = 60;
+      colsSlider.value = '60';
+      colsVal.textContent = '60';
+    }
+
+    measureChar();
+    CHAR_SETS.custom = [...customCharsInput.value];
+
+    // Defer heavy one-time work so the page renders first.
+    setTimeout(() => {
+      // Build density-ordered Unicode character set (~2 000 chars, < 80 ms).
+      const pool = generateUnicodePool();
+      CHAR_SETS.unicode = buildDensityMap(pool);
+
+      // Build emoji colour table and O(1) LUT.
+      emojiColors = buildEmojiColors(EMOJI_LIST);
+      emojiLUT    = buildEmojiLUT(emojiColors);
+    }, 0);
+  </script>
+</body>
+</html>

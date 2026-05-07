@@ -1,89 +1,65 @@
-# Image to ASCII Art Converter
+# ASCII / Unicode Art Converter
 
-A simple Python script that converts images into ASCII art. This tool takes any image file as input and creates an artistic representation using ASCII characters, maintaining the visual essence of the original image through different character densities.
+A browser-based image, video, and webcam to ASCII/Unicode art converter. Runs entirely client-side — no server needed. Built with Astro, deployable to Cloudflare Pages.
+
+**Live demo:** [your-domain.pages.dev](https://your-domain.pages.dev)
 
 ## Features
 
-- Converts any image format supported by PIL (PNG, JPG, etc.)
-- Maintains aspect ratio of original image
-- Customizable output width
-- Outputs both to console and text file
-- Uses a rich set of ASCII characters for detailed gradients
-- Preserves image contrast and details
-- Available in both CLI and GUI versions
+**Input**
+- Drag & drop or browse for images and videos
+- Paste from clipboard
+- Live webcam feed
+- Load from URL
 
-## Requirements
+**Character modes**
+- Block characters `░▒▓█`
+- Dense ASCII (69 levels)
+- Simple ASCII
+- Braille patterns `⣿` (2×4 dot cells)
+- Unicode — density-sorted from ~2000 symbols across 18 Unicode blocks
+- Emoji mosaic — nearest-color emoji matched via O(1) lookup table
+- Custom — type your own character sequence (sparse → dense)
 
-- Python 3.x
-- Pillow (PIL)
-- NumPy
-- Tkinter (included with Python)
+**Effects**
+- Full-color or monochrome with custom fg/bg color pickers
+- Invert (dark bg / light bg)
+- Brightness and contrast sliders
+- Dithering — Floyd-Steinberg, Atkinson, Ordered/Bayer
+- Edge detection — Sobel operator → directional chars `─ │ ╱ ╲`
+- Drift mode — particle flow along iso-luminance contours
 
-Install the required packages using:
+**Export**
+- Copy as plain text
+- Download PNG, JPG, SVG, TXT
+- Webcam snapshot (freezes frame, then export as above)
+- Record video as WebM (live canvas capture)
+
+## Tech stack
+
+- [Astro](https://astro.build) — static site, single page, zero JS frameworks
+- Canvas API — offscreen sampler canvas + output canvas, `requestAnimationFrame` loop
+- `MediaRecorder` API — video recording
+- Cloudflare Pages — hosting
+
+## Local development
 
 ```bash
-pip install Pillow numpy
+npm install
+npm run dev
 ```
 
-## Usage
+## Build & deploy
 
-### Command Line Interface
-1. Run the script:
 ```bash
-python image_to_ascii.py
-```
-2. When prompted:
-   - Enter the path to your image file
-   - Enter desired width (default is 100 characters)
-
-### Graphical User Interface
-1. Run the UI version:
-```bash
-python image_to_ascii_ui.py
-```
-2. Use the interface to:
-   - Select an image using the "Select Image" button
-   - Set the desired width
-   - Click "Convert" to generate ASCII art
-   - Save the result using the "Save ASCII" button
-
-The ASCII art will be:
-- Displayed in the application window
-- Can be saved to a text file of your choice
-
-## Example
-
-Command Line Input:
-```
-Enter the path to your image: cat.jpg
-Enter desired width (default 100): 100
+npm run build   # outputs to dist/
 ```
 
-The script will generate ASCII art and save it to `ascii_output.txt`.
-
-## Tips for Best Results
-
-- Use high-contrast images
-- Ensure your terminal uses a monospace font
-- Larger widths provide more detail but may not display properly in all terminals
-- Dark backgrounds work better for viewing the output
-- Simple images with clear subjects work best
-
-## Character Set
-
-The converter uses a range of ASCII characters to represent different levels of brightness:
-
-```
-$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`'. 
-```
-
-- Denser characters (like '@', '#', '&') represent darker areas
-- Lighter characters (like '.', '`', ' ') represent brighter areas
+**Cloudflare Pages settings:**
+- Build command: `npm run build`
+- Build output directory: `dist`
+- Node version: 18+
 
 ## License
 
-This project is open source and available under the MIT License.
-
-## Contributing
-
-Feel free to fork this repository and submit pull requests for any improvements.
+MIT
