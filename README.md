@@ -2,7 +2,7 @@
 
 A browser-based image, video, and webcam to ASCII/Unicode art converter. Runs entirely client-side — no server needed. Built with Astro, deployable to Cloudflare Pages.
 
-**Live demo:** [your-domain.pages.dev](https://your-domain.pages.dev)
+**Live demo:** [sahilmenon.com/projects/ascii](https://sahilmenon.com/projects/ascii)
 
 ## Features
 
