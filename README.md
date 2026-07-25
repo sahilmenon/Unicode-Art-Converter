@@ -1,5 +1,7 @@
 # ASCII / Unicode Art Converter
 
+[![CI](https://github.com/sahilmenon/Unicode-Art-Converter/actions/workflows/ci.yml/badge.svg)](https://github.com/sahilmenon/Unicode-Art-Converter/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A zero-dependency, fully client-side image / video / webcam → ASCII/Unicode art converter that sustains **30 fps video at ~2.1 ms/frame** in the browser. ~1,700 lines of Astro + vanilla JavaScript — no server, no frameworks, nothing leaves your machine.
 
 **Live demo:** [sahilmenon.com/projects/ascii](https://sahilmenon.com/projects/ascii)
