@@ -675,6 +675,12 @@
     let recordStartTime     = 0;
     let recordTimerInterval = null;
 
+    // Perf tracking
+    let perfRenderMs   = 0;   // exponential moving avg of processFrame duration
+    let perfFps        = 0;   // exponential moving avg of rendered fps
+    let perfLastFrame  = 0;   // timestamp of last rendered frame
+    let perfStatusInt  = null;// setInterval handle for status updates
+
     // ── DOM refs ──────────────────────────────────────────────────────────────
     const dropZone      = document.getElementById('drop-zone');
     const dropIdle      = document.getElementById('drop-idle');
@@ -1034,23 +1040,47 @@
     function startLoop() {
       if (animRun) return;
       animRun = true;
+      perfRenderMs = 0; perfFps = 0; perfLastFrame = 0;
+
       function tick() {
         if (!animRun) return;
-        if (srcType === 'video' || srcType === 'webcam') {
-          if (!srcVideo.paused && srcVideo.readyState >= 2) {
-            processFrame(srcVideo);
+        const isLive = (srcType === 'video' || srcType === 'webcam')
+          ? (!srcVideo.paused && srcVideo.readyState >= 2)
+          : (srcType === 'image' && driftMode);
+
+        if (isLive) {
+          const t0 = performance.now();
+          processFrame(srcType === 'image' ? srcImg : srcVideo);
+          const renderDt = performance.now() - t0;
+
+          // Exponential moving average (α=0.15 → smoothed over ~12 frames)
+          perfRenderMs = perfRenderMs ? perfRenderMs * 0.85 + renderDt * 0.15 : renderDt;
+
+          const now = performance.now();
+          if (perfLastFrame) {
+            const fps = 1000 / (now - perfLastFrame);
+            perfFps = perfFps ? perfFps * 0.85 + fps * 0.15 : fps;
           }
-        } else if (srcType === 'image' && driftMode) {
-          processFrame(srcImg);
+          perfLastFrame = now;
         }
         animId = requestAnimationFrame(tick);
       }
+
+      // Update status bar with perf stats every second
+      perfStatusInt = setInterval(() => {
+        if (animRun && perfFps > 0) {
+          const mode = edgeMode ? 'edge' : driftMode ? 'drift' : charSet;
+          setStatus(`${Math.round(perfFps)} fps · ${perfRenderMs.toFixed(1)} ms/frame · ${mode}`);
+        }
+      }, 1000);
+
       animId = requestAnimationFrame(tick);
     }
 
     function stopLoop() {
       animRun = false;
       if (animId !== null) { cancelAnimationFrame(animId); animId = null; }
+      if (perfStatusInt !== null) { clearInterval(perfStatusInt); perfStatusInt = null; }
     }
 
     // ── Source management ─────────────────────────────────────────────────────
@@ -1116,9 +1146,11 @@
       } else {
         srcImg.onload = () => {
           measureChar();
+          const t0 = performance.now();
           processFrame(srcImg);
+          const ms = (performance.now() - t0).toFixed(1);
           showOutput('image', file.name);
-          setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${file.name}`);
+          setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${file.name} · ${ms}ms`);
         };
         srcImg.onerror = () => setStatus('failed to load image');
         srcImg.src = url;
@@ -1182,7 +1214,7 @@
       fontSize = parseInt(sizeSlider.value);
       sizeVal.textContent = `${fontSize}px`;
       measureChar();
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     charsetSel.addEventListener('change', () => {
@@ -1207,7 +1239,7 @@
       colorBtn.style.opacity = charSet === 'emoji' ? '0.35' : '1';
       colorBtn.style.pointerEvents = charSet === 'emoji' ? 'none' : '';
 
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     colorBtn.addEventListener('click', () => {
@@ -1216,7 +1248,7 @@
       colorBtn.classList.toggle('active', colored);
       colorPickers.style.opacity = colored ? '0.35' : '1';
       colorPickers.style.pointerEvents = colored ? 'none' : '';
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     invertBtn.addEventListener('click', () => {
@@ -1227,16 +1259,16 @@
       [fgColor, bgColor] = [bgColor, fgColor];
       fgInput.value = fgColor;
       bgInput.value = bgColor;
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     fgInput.addEventListener('input', () => {
       fgColor = fgInput.value;
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
     bgInput.addEventListener('input', () => {
       bgColor = bgInput.value;
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     // ── URL loading ───────────────────────────────────────────────────────────
@@ -1251,26 +1283,26 @@
     // ── Effects controls ──────────────────────────────────────────────────────
     ditherSelect.addEventListener('change', () => {
       ditherMode = ditherSelect.value;
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     edgeBtn.addEventListener('click', () => {
       edgeMode = !edgeMode;
       if (edgeMode && driftMode) { driftMode = false; driftBtn.classList.remove('active'); particles = []; }
       edgeBtn.classList.toggle('active', edgeMode);
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     brightSlider.addEventListener('input', () => {
       brightness = parseInt(brightSlider.value);
       brightVal.textContent = brightness > 0 ? `+${brightness}` : String(brightness);
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     contrastSlider.addEventListener('input', () => {
       contrast = parseInt(contrastSlider.value);
       contrastVal.textContent = contrast > 0 ? `+${contrast}` : String(contrast);
-      if (srcType === 'image') processFrame(srcImg);
+      rerender();
     });
 
     driftBtn.addEventListener('click', () => {
@@ -1565,9 +1597,11 @@
         srcImg.crossOrigin = 'anonymous';
         srcImg.onload = () => {
           measureChar();
+          const t0 = performance.now();
           processFrame(srcImg);
+          const ms = (performance.now() - t0).toFixed(1);
           showOutput('image', url.split('/').pop().split('?')[0] || 'remote image');
-          setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${url}`);
+          setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${url} · ${ms}ms`);
         };
         srcImg.onerror = () => setStatus('failed to load image (CORS or invalid URL)');
         srcImg.src = url;
@@ -1678,6 +1712,16 @@
 
     function setStatus(msg) { statusEl.textContent = msg; }
 
+    // Re-render a static image and report timing in the status bar
+    function rerender() {
+      if (srcType !== 'image') return;
+      const t0 = performance.now();
+      processFrame(srcImg);
+      const ms = (performance.now() - t0).toFixed(1);
+      const mode = edgeMode ? 'edge' : driftMode ? 'drift' : charSet;
+      setStatus(`${srcImg.naturalWidth}×${srcImg.naturalHeight} · ${ms}ms · ${mode}`);
+    }
+
     // ── Startup initialisation ────────────────────────────────────────────────
     // Use fewer columns on narrow screens so the canvas fits without horizontal scroll
     if (window.innerWidth < 640) {
@@ -1691,13 +1735,20 @@
 
     // Defer heavy one-time work so the page renders first.
     setTimeout(() => {
-      // Build density-ordered Unicode character set (~2 000 chars, < 80 ms).
+      let t;
+
+      t = performance.now();
       const pool = generateUnicodePool();
       CHAR_SETS.unicode = buildDensityMap(pool);
+      console.log(`[ascii] unicode density map: ${(performance.now()-t).toFixed(0)}ms (${CHAR_SETS.unicode.length} chars)`);
 
-      // Build emoji colour table and O(1) LUT.
+      t = performance.now();
       emojiColors = buildEmojiColors(EMOJI_LIST);
-      emojiLUT    = buildEmojiLUT(emojiColors);
+      console.log(`[ascii] emoji color table: ${(performance.now()-t).toFixed(0)}ms (${emojiColors.length} emojis)`);
+
+      t = performance.now();
+      emojiLUT = buildEmojiLUT(emojiColors);
+      console.log(`[ascii] emoji LUT (32³=${emojiLUT.length} entries): ${(performance.now()-t).toFixed(0)}ms`);
     }, 0);
   </script>
 </body>
